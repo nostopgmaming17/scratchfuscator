@@ -132,7 +132,54 @@ Automatic final pass that ensures SB3 schema compliance by inlining primitive bl
 
 ## Browser Console Usage
 
-The build also produces `dist/console-obfuscator.js`, a browser-injectable IIFE that accesses the Scratch VM's internal state via the global `vm` variable. This version has no Node.js dependencies.
+The build also produces `dist/console-obfuscator.js`, a browser-injectable IIFE that can be pasted into the browser devtools console on the Scratch editor page (`scratch.mit.edu/projects/xxx/editor`). It has no Node.js dependencies.
+
+When pasted, the script auto-detects the Scratch VM and exposes three globals:
+
+### `__scratchObfuscate(preset?, opts?)`
+
+Main function. Extracts the project from the VM, obfuscates it, and loads it back.
+
+```js
+// Basic usage with a preset
+__scratchObfuscate("heavy")
+
+// Only obfuscate specific sprites (stage is always included)
+__scratchObfuscate("max", { onlySprites: ["AntiCheat", "Player"] })
+
+// Skip specific sprites, obfuscate everything else
+__scratchObfuscate("max", { excludeSprites: ["Thumbnail", "UI"] })
+
+// Keep specific variable/list/broadcast names intact
+__scratchObfuscate("heavy", { excludeNames: ["score", "lives", "myBroadcast"] })
+```
+
+**Parameters:**
+- `preset` — `"light"`, `"medium"` (default), `"heavy"`, or `"max"`. Can also be a full `ObfuscatorConfig` object.
+- `opts` — optional runtime options:
+  - `onlySprites: string[]` — only obfuscate these sprites
+  - `excludeSprites: string[]` — skip these sprites (ignored if `onlySprites` is set)
+  - `excludeNames: string[]` — variable/list/broadcast names to skip renaming
+
+### `__scratchObfuscatorPresets`
+
+Object containing all preset configs (`light`, `medium`, `heavy`, `max`). Useful for inspecting or cloning a preset as a starting point.
+
+### `__scratchObfuscatorMergeConfig(base, overrides)`
+
+Deep-merges partial overrides into a base preset. Returns a full config object you can pass to `__scratchObfuscate`.
+
+```js
+// Max preset but with custom sensing-of probability
+__scratchObfuscate(
+  __scratchObfuscatorMergeConfig("max", { sensingOf: { probability: 0.5 } })
+)
+
+// Medium preset but disable CFF
+__scratchObfuscate(
+  __scratchObfuscatorMergeConfig("medium", { cff: { enabled: false } })
+)
+```
 
 ## Project Structure
 
