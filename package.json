@@ -1,0 +1,28 @@
+{
+  "name": "scratchfuscator",
+  "version": "2.0.0",
+  "description": "Scratch project (.sb3) obfuscator with BST-dispatch CFF, dead code injection, opaque predicates, constant obfuscation, and variable renaming",
+  "bin": {
+    "scratchfuscator": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "rollup -c && terser dist/cli.js -o dist/cli.js -c passes=2 -m && terser dist/console-obfuscator.js -o dist/console-obfuscator.js -c passes=2 -m",
+    "build:dev": "rollup -c",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/node": "^20.11.0",
+    "rollup": "^4.12.0",
+    "terser": "^5.46.0",
+    "tslib": "^2.6.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.4.0"
+  }
+}
