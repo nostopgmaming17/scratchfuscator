@@ -17,6 +17,8 @@ export interface SB3Project {
   _argEncBlockIds?: Set<string>;
   /** Constants string pool list info. Populated by constants transform, consumed by anti-tamper. */
   _constListInfo?: { id: string; name: string };
+  /** Anti-tamper context: sentinel variables and tamper flags created by prepareAntiTamper, consumed by CFF. */
+  _antiTamperContext?: import('./transforms/antitamper').AntiTamperContext;
 }
 
 export interface SB3Target {

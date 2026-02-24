@@ -159,14 +159,8 @@ export interface ObfuscatorConfig {
     hiddenListChecks: boolean;
     /** Create paired variables that store each other's expected values */
     pairedVariableChecks: boolean;
-    /** Verify costume number via sensing_of of self (detects sprite rename + costume reorder) */
-    costumeNumberChecks: boolean;
     /** Each sprite verifies another sprite's sentinel variables in a ring pattern */
     crossSpriteVerification: boolean;
-    /** Define and call a custom block that sets a variable; detects procedure renaming */
-    customBlockIntegrity: boolean;
-    /** Same as hidden variable checks but with a random delay before checking */
-    delayedIntegrityChecks: boolean;
     /** Three variables must satisfy a*b+c=expected; can't be bypassed by zeroing them */
     mathematicalFlagChecks: boolean;
     /** Sum string lengths in the constants pool list and verify the checksum */
@@ -255,10 +249,8 @@ export const PRESET_LIGHT: ObfuscatorConfig = {
     tamperFlagMonitors: true,
     hiddenListChecks: true,
     pairedVariableChecks: true,
-    costumeNumberChecks: true,
+
     crossSpriteVerification: true,
-    customBlockIntegrity: true,
-    delayedIntegrityChecks: true,
     mathematicalFlagChecks: true,
     stringListChecksum: true,
   },
@@ -339,10 +331,8 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
     tamperFlagMonitors: true,
     hiddenListChecks: true,
     pairedVariableChecks: true,
-    costumeNumberChecks: true,
+
     crossSpriteVerification: true,
-    customBlockIntegrity: true,
-    delayedIntegrityChecks: true,
     mathematicalFlagChecks: true,
     stringListChecksum: true,
   },
@@ -423,10 +413,8 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
     tamperFlagMonitors: true,
     hiddenListChecks: true,
     pairedVariableChecks: true,
-    costumeNumberChecks: true,
+
     crossSpriteVerification: true,
-    customBlockIntegrity: true,
-    delayedIntegrityChecks: true,
     mathematicalFlagChecks: true,
     stringListChecksum: true,
   },
@@ -507,10 +495,8 @@ export const PRESET_MAX: ObfuscatorConfig = {
     tamperFlagMonitors: true,
     hiddenListChecks: true,
     pairedVariableChecks: true,
-    costumeNumberChecks: true,
+
     crossSpriteVerification: true,
-    customBlockIntegrity: true,
-    delayedIntegrityChecks: true,
     mathematicalFlagChecks: true,
     stringListChecksum: true,
   },

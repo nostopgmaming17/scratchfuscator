@@ -1,10 +1,11 @@
 /**
  * Constant Obfuscation
  *
- * Three ordered sub-passes run per target:
- *   1. String splitting  — TEXT_PRIMITIVE → operator_join tree of substrings
- *   2. String list       — TEXT_PRIMITIVE → data_itemoflist from a stage constants pool
- *   3. Number equations  — MATH_NUM_PRIMITIVE → arithmetic expression tree
+ * Four ordered sub-passes run per target:
+ *   1.  String splitting  — TEXT_PRIMITIVE → operator_join tree of substrings
+ *   2a. String list       — TEXT_PRIMITIVE → data_itemoflist from a stage constants pool
+ *   2b. Shadow menus      — dropdown menu values → data_itemoflist obscuring the shadow
+ *   3.  Number equations  — MATH_NUM_PRIMITIVE → arithmetic expression tree
  *
  * Running splitting before the list pass means the individual pieces land in
  * the pool rather than the original concatenated string, which increases pool
@@ -14,7 +15,7 @@
 import {
   SB3Target, SB3Block, SB3Project, SB3Primitive,
   isSB3Block, isSB3Primitive,
-  INPUT_SAME_BLOCK_SHADOW, INPUT_BLOCK_NO_SHADOW,
+  INPUT_SAME_BLOCK_SHADOW, INPUT_BLOCK_NO_SHADOW, INPUT_DIFF_BLOCK_SHADOW,
   MATH_NUM_PRIMITIVE, TEXT_PRIMITIVE,
 } from '../types';
 import { BlockBuilder } from '../blocks';
@@ -60,9 +61,14 @@ export function applyConstantObfuscation(project: SB3Project, config: Obfuscator
       splitStringsInTarget(target, bb, config.constants.stringSplitDepth);
     }
 
-    // Sub-pass 2: String list (TEXT_PRIMITIVE → data_itemoflist from constants pool)
+    // Sub-pass 2a: String list (TEXT_PRIMITIVE → data_itemoflist from constants pool)
     if (config.constants.obfuscateStrings) {
       obfuscateStringsInTarget(target, bb, constListName, constListId, constPool, stage);
+    }
+
+    // Sub-pass 2b: Shadow menu strings (obscure dropdown menus with itemoflist reporters)
+    if (config.constants.obfuscateStrings) {
+      obfuscateShadowMenusInTarget(target, bb, constListName, constListId, constPool, stage);
     }
 
     // Sub-pass 3: Number equations (MATH_NUM_PRIMITIVE → math expression trees)
@@ -245,6 +251,86 @@ function obfuscateStringsInTarget(
 
         (inputArr as any[])[slot] = itemOfId;
         inputArr[0] = INPUT_BLOCK_NO_SHADOW;
+      }
+    }
+  }
+}
+
+// ── Sub-pass 2b: Shadow Menu Strings ─────────────────────────────
+// Obscure shadow menu dropdown values with itemoflist reporters.
+// E.g., sensing_keyoptions with KEY_OPTION="w" → itemoflist obscures the shadow.
+
+const OBFUSCATABLE_SHADOW_OPCODES = new Set([
+  'sensing_keyoptions',
+  'sensing_touchingobjectmenu',
+  'sensing_distancetomenu',
+  'sensing_of_object_menu',
+  'looks_costume',
+  'looks_backdrops',
+  'sound_sounds_menu',
+  'motion_pointtowards_menu',
+  'motion_glideto_menu',
+  'motion_goto_menu',
+  'control_create_clone_of_menu',
+  'pen_menu_colorParam',
+]);
+
+function obfuscateShadowMenusInTarget(
+  target: SB3Target,
+  bb: BlockBuilder,
+  constListName: string,
+  constListId: string,
+  constPool: string[],
+  stage: SB3Target,
+): void {
+  for (const [blockId, blockOrPrim] of Object.entries(target.blocks)) {
+    if (!isSB3Block(blockOrPrim)) continue;
+    const block = blockOrPrim;
+
+    if (SKIP_PARENT_OPCODES.has(block.opcode)) continue;
+
+    for (const [inputName, inputArr] of Object.entries(block.inputs)) {
+      if (inputName.startsWith('SUBSTACK')) continue;
+      if (inputName === 'custom_block') continue;
+
+      // Only process unobscured shadow inputs: [1, shadowId]
+      if (inputArr[0] !== INPUT_SAME_BLOCK_SHADOW) continue;
+
+      const shadowId = inputArr[1];
+      if (typeof shadowId !== 'string') continue;
+
+      const shadowBlock = target.blocks[shadowId];
+      if (!shadowBlock || !isSB3Block(shadowBlock)) continue;
+      if (!shadowBlock.shadow) continue;
+      if (!OBFUSCATABLE_SHADOW_OPCODES.has(shadowBlock.opcode)) continue;
+
+      // Extract the first field's string value
+      const fieldEntries = Object.entries(shadowBlock.fields);
+      if (fieldEntries.length === 0) continue;
+      const [, fieldArr] = fieldEntries[0];
+      const strVal = String(fieldArr[0]);
+      if (strVal === '' || strVal.length > 200) continue;
+
+      // Pool the string
+      let poolIndex = constPool.indexOf(strVal);
+      if (poolIndex === -1) {
+        constPool.push(strVal);
+        (stage.lists[constListId] as [string, any[]])[1].push(strVal);
+        poolIndex = constPool.length - 1;
+      }
+
+      const indexId = bb.numberLiteral(poolIndex + 1);
+      const itemOfId = bb.itemOfList(constListName, constListId, indexId);
+      bb.setParent(indexId, itemOfId);
+      bb.setParent(itemOfId, blockId);
+
+      // Change input from [1, shadowId] to [3, reporterId, shadowId]
+      inputArr[0] = INPUT_DIFF_BLOCK_SHADOW;
+      (inputArr as any[])[1] = itemOfId;
+      if (inputArr.length < 3) {
+        (inputArr as any[]).push(shadowId);
+      } else {
+        (inputArr as any[])[2] = shadowId;
       }
     }
   }

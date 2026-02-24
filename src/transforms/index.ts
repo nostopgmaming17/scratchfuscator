@@ -5,11 +5,14 @@
  * Order matters:
  * 1. Fake data (creates variables/lists/broadcasts used by dead code)
  * 2. Renaming (renames variables/lists/broadcasts BEFORE CFF extracts names)
- * 2b. Sensing-of substitution (runs after renaming so names are final,
- *     before CFF so injected set-temp blocks can be decomposed into states)
- * 3. CFF (restructures control flow, injects dead states with dead code)
+ * 2a. Variable encryption
+ * 2b. Sensing-of substitution (runs after renaming so names are final)
+ * 2c. Anti-tamper (creates checker scripts with final names; CFF will flatten them)
+ * 3. CFF (restructures control flow, flattens anti-tamper scripts too)
+ * 3b. Broadcast obfuscation
  * 4. Dead code injection (standalone, on remaining linear code)
- * 5. Constant obfuscation (obfuscates number/string literals including CFF BST comparisons)
+ * 5. Constant obfuscation (obfuscates magic numbers in anti-tamper checks)
+ * 5b. String list checksum (type L, depends on constants pool)
  * 6. Scramble (visual scrambling, comment removal)
  */
 
@@ -24,7 +27,7 @@ import { applyScramble } from './scramble';
 import { applySensingOf } from './sensingof';
 import { applyBroadcastObf } from './broadcastobf';
 import { applyVarEncryption } from './varencryption';
-import { applyAntiTamper } from './antitamper';
+import { prepareAntiTamper, applyAntiTamper, applyStringListChecksum } from './antitamper';
 import { resetNames } from '../uid';
 
 /**
@@ -95,6 +98,12 @@ export function obfuscate(project: SB3Project, config: ObfuscatorConfig, opts?: 
   console.log('[obfuscator] Phase 2b: Sensing-of substitution');
   applySensingOf(p, config, opts);
 
+  // 2c. Anti-tamper preparation (creates sentinel vars + tamper flags; NO scripts yet)
+  //     Then standalone scripts for types that can't merge into CFF (type D monitors)
+  console.log('[obfuscator] Phase 2c: Anti-tamper');
+  prepareAntiTamper(p, config, opts);
+  applyAntiTamper(p, config, opts);
+
   // 3. Control flow flattening
   console.log('[obfuscator] Phase 3: Control flow flattening');
   // Snapshot block IDs before CFF so we can identify CFF-generated blocks
@@ -124,16 +133,16 @@ export function obfuscate(project: SB3Project, config: ObfuscatorConfig, opts?: 
   console.log('[obfuscator] Phase 5: Constant obfuscation');
   applyConstantObfuscation(p, config, opts);
 
+  // 5b. String list checksum (type L — needs constants pool from phase 5)
+  console.log('[obfuscator] Phase 5b: String list checksum');
+  applyStringListChecksum(p, config);
+
   // 6. Visual scrambling
   console.log('[obfuscator] Phase 6: Visual scrambling');
   applyScramble(p, config, opts);
 
-  // 7. Anti-tamper (AFTER all other transforms so it knows final names/values)
-  console.log('[obfuscator] Phase 7: Anti-tamper');
-  applyAntiTamper(p, config, opts);
-
-  // 8. Inline primitives (fix SB3 schema compliance)
-  console.log('[obfuscator] Phase 8: Inlining primitives');
+  // 7. Inline primitives (fix SB3 schema compliance)
+  console.log('[obfuscator] Phase 7: Inlining primitives');
   inlinePrimitives(p);
 
   console.log('[obfuscator] Obfuscation complete.');
@@ -150,4 +159,4 @@ export { applyScramble } from './scramble';
 export { applySensingOf } from './sensingof';
 export { applyBroadcastObf } from './broadcastobf';
 export { applyVarEncryption } from './varencryption';
-export { applyAntiTamper } from './antitamper';
+export { prepareAntiTamper, applyAntiTamper, applyStringListChecksum } from './antitamper';

@@ -55,6 +55,7 @@ import { BlockBuilder } from '../blocks';
 import { ObfuscatorConfig, ObfuscateOptions, isTargetSelected } from '../config';
 import { uid, confusableName, randomInt, randomBool, shuffle } from '../uid';
 import { generateDeadCodeChain, generateDynamicDeadCodeChain, DeadCodeContext } from './deadcode';
+import { generateTamperCheckStates } from './antitamper';
 import { BlockList } from 'net';
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -270,12 +271,45 @@ function applyCFFToTarget(project: SB3Project, target: SB3Target, config: Obfusc
     }
   }
 
-  // ── Flatten each script ──
+  // ── Count how many scripts will actually be flattened ──
+  let flattenCount = 0;
   for (const hatId of hatBlockIds) {
-    flattenHatScript(target, bb, hatId, config, deadCtx, lists);
+    const hatBlock = bb.getFullBlock(hatId);
+    if (hatBlock && hatBlock.next) {
+      const chain = bb.walkChain(hatBlock.next);
+      if (chain.length >= config.cff.minBlocksToFlatten) flattenCount++;
+    }
   }
   for (const defId of procDefIds) {
-    flattenProcedureBody(target, bb, defId, config, deadCtx, lists);
+    const defBlock = bb.getFullBlock(defId);
+    if (defBlock && defBlock.next) {
+      const chain = bb.walkChain(defBlock.next);
+      if (chain.length >= config.cff.minBlocksToFlatten) flattenCount++;
+    }
+  }
+
+  // ── Flatten each script ──
+  // Per-target dead state budget spread equally across scripts.
+  // Budget scales sub-linearly with script count: each script always gets at least
+  // 1 dead state (if configured > 0), but the per-script share shrinks as scripts
+  // increase so total dead states don't explode.
+  // Formula: perScript = max(1, deadStatesPerScript / sqrt(flattenCount))
+  // Examples (MAX preset, deadStatesPerScript=10):
+  //   1 script  → 10 each, 10 total
+  //   4 scripts → 5 each, 20 total
+  //   16 scripts → 2 each, 32 total (still capped by 50% ratio)
+  //   100 scripts → 1 each, 100 total (but ratio cap keeps small scripts lean)
+  const dps = config.cff.deadStatesPerScript;
+  const perScriptBudget = flattenCount > 0 && dps > 0
+    ? Math.max(1, Math.round(dps / Math.sqrt(flattenCount)))
+    : 0;
+  for (const hatId of hatBlockIds) {
+    const deadBudget = { remaining: perScriptBudget };
+    flattenHatScript(target, bb, hatId, config, deadCtx, lists, project, deadBudget);
+  }
+  for (const defId of procDefIds) {
+    const deadBudget = { remaining: perScriptBudget };
+    flattenProcedureBody(target, bb, defId, config, deadCtx, lists, project, deadBudget);
   }
 }
 
@@ -573,13 +607,14 @@ function buildWaitHandler(target: SB3Target, bb: BlockBuilder, lists: TargetCFFL
 function flattenHatScript(
   target: SB3Target, bb: BlockBuilder, hatId: string,
   config: ObfuscatorConfig, deadCtx: DeadCodeContext, lists: TargetCFFLists,
+  project: SB3Project, deadBudget: { remaining: number },
 ): void {
   const hatBlock = bb.getFullBlock(hatId);
   if (!hatBlock || !hatBlock.next) return;
   const chainIds = bb.walkChain(hatBlock.next);
   if (chainIds.length < config.cff.minBlocksToFlatten) return;
 
-  const { states, entryPc, yieldRedirects } = decomposeToCFG(bb, chainIds, config, deadCtx);
+  const { states, entryPc, yieldRedirects } = decomposeToCFG(bb, chainIds, config, deadCtx, project, target, deadBudget);
   if (states.length === 0) return;
 
   const ctx = createScriptInfrastructure(target, bb, lists, config);
@@ -614,6 +649,7 @@ function flattenHatScript(
 function flattenProcedureBody(
   target: SB3Target, bb: BlockBuilder, defId: string,
   config: ObfuscatorConfig, deadCtx: DeadCodeContext, lists: TargetCFFLists,
+  project: SB3Project, deadBudget: { remaining: number },
 ): void {
   const defBlock = bb.getFullBlock(defId);
   if (!defBlock || !defBlock.next) return;
@@ -638,7 +674,7 @@ function flattenProcedureBody(
     }
   }
 
-  const { states, entryPc, yieldRedirects } = decomposeToCFG(bb, chainIds, config, deadCtx);
+  const { states, entryPc, yieldRedirects } = decomposeToCFG(bb, chainIds, config, deadCtx, project, target, deadBudget);
   if (states.length === 0) return;
 
   const ctx = createScriptInfrastructure(target, bb, lists, config, origArgNames, origArgFormatSpecs);
@@ -675,6 +711,8 @@ function flattenProcedureBody(
 function decomposeToCFG(
   bb: BlockBuilder, chainIds: string[],
   config: ObfuscatorConfig, deadCtx: DeadCodeContext,
+  project: SB3Project, target: SB3Target,
+  deadBudget: { remaining: number },
 ): { states: CFGState[]; entryPc: number; yieldRedirects: Map<number, number> } {
   const states: CFGState[] = [];
   const usedPcs = new Set<number>();
@@ -1084,8 +1122,22 @@ function decomposeToCFG(
   }
 
   const entryPc = decomposeChain(chainIds, EXIT_PC);
-  const deadStates = generateDeadStates(bb, deadCtx, config, usedPcs);
+  const realStateCount = states.length;
+  const deadStates = generateDeadStates(bb, deadCtx, config, usedPcs, realStateCount, deadBudget);
   states.push(...deadStates);
+
+  // Splice anti-tamper check states into the state machine
+  if (project._antiTamperContext) {
+    const tamperAllocPc = (): number => {
+      let pc: number;
+      do { pc = randomHugeInt(); } while (usedPcs.has(pc) || pc === EXIT_PC);
+      usedPcs.add(pc);
+      return pc;
+    };
+    const tamperResult = generateTamperCheckStates(bb, project, target, states, tamperAllocPc, EXIT_PC);
+    states.push(...tamperResult.states);
+  }
+
   const shuffled = shuffle(states);
 
   return { states: shuffled, entryPc, yieldRedirects };
@@ -1096,9 +1148,14 @@ function decomposeToCFG(
 function generateDeadStates(
   bb: BlockBuilder, deadCtx: DeadCodeContext,
   config: ObfuscatorConfig, usedPcs: Set<number>,
+  realStateCount: number, deadBudget: { remaining: number },
 ): CFGState[] {
   const deadStates: CFGState[] = [];
-  const count = config.cff.deadStatesPerScript;
+  // Scale dead states: capped by per-script budget (from sqrt scaling) and by
+  // the real state count (dead states ≤ real states, min 1 if configured > 0).
+  const maxByRatio = Math.max(1, realStateCount);
+  const count = Math.min(config.cff.deadStatesPerScript, maxByRatio, deadBudget.remaining);
+  if (count <= 0) return deadStates;
 
   for (let i = 0; i < count; i++) {
     let pc: number;
@@ -1123,6 +1180,7 @@ function generateDeadStates(
 
     deadStates.push({ pc, bodyBlockIds: bodyIds, nextPc, isDead: true });
   }
+  deadBudget.remaining -= deadStates.length;
   return deadStates;
 }
 
