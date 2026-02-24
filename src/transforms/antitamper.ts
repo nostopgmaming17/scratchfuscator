@@ -27,12 +27,31 @@
  */
 
 import {
-  SB3Target, SB3Project,
+  SB3Target, SB3Project, isSB3Block,
   INPUT_SAME_BLOCK_SHADOW, INPUT_BLOCK_NO_SHADOW, INPUT_DIFF_BLOCK_SHADOW,
 } from '../types';
 import { ObfuscatorConfig, ObfuscateOptions, isTargetSelected } from '../config';
 import { BlockBuilder } from '../blocks';
 import { confusableName, randomInt } from '../uid';
+
+const HAT_OPCODES = new Set([
+  'event_whenflagclicked', 'event_whenkeypressed', 'event_whenthisspriteclicked',
+  'event_whenstageclicked', 'event_whenbackdropswitchesto', 'event_whengreaterthan',
+  'event_whenbroadcastreceived', 'control_start_as_clone',
+]);
+
+/** Returns true if a target has any hat blocks with scripts attached. */
+function targetHasScripts(target: SB3Target): boolean {
+  for (const block of Object.values(target.blocks)) {
+    if (isSB3Block(block) && block.topLevel && HAT_OPCODES.has(block.opcode) && block.next) {
+      return true;
+    }
+    if (isSB3Block(block) && block.opcode === 'procedures_definition' && block.next) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // ── Public types ──────────────────────────────────────────────────
 
@@ -48,7 +67,7 @@ export interface Sentinel {
 }
 
 export interface AntiTamperContext {
-  tamperFlags: TamperFlag[];
+  targetTamperFlags: Map<SB3Target, TamperFlag[]>;
   targetSentinels: Map<SB3Target, Sentinel[]>;
   config: ObfuscatorConfig['antiTamper'];
 }
@@ -233,27 +252,28 @@ export function prepareAntiTamper(
 ): void {
   if (!config.antiTamper.enabled) return;
 
-  const stage = project.targets.find(t => t.isStage);
-  if (!stage) return;
-
-  const sprites = project.targets.filter(
-    t => !t.isStage && isTargetSelected(t, opts),
+  // Only add anti-tamper to selected targets that actually have scripts
+  const selectedTargets = project.targets.filter(
+    t => isTargetSelected(t, opts) && targetHasScripts(t),
   );
+  if (selectedTargets.length === 0) return;
 
-  const stageBb = new BlockBuilder(stage);
-
-  // Create tamper flag variables on stage (global)
-  const tamperFlags: TamperFlag[] = [];
-  for (let i = 0; i < 3; i++) {
-    const name = confusableName(80);
-    const id = stageBb.createVariable(name, 0);
-    tamperFlags.push({ name, id });
-  }
-
-  // Create sentinel variables on each target
   const targetSentinels = new Map<SB3Target, Sentinel[]>();
-  for (const target of [stage, ...sprites]) {
+  const targetTamperFlags = new Map<SB3Target, TamperFlag[]>();
+
+  for (const target of selectedTargets) {
     const bb = new BlockBuilder(target);
+
+    // Tamper flags (per-target, local to each sprite)
+    const tamperFlags: TamperFlag[] = [];
+    for (let i = 0; i < 3; i++) {
+      const name = confusableName(80);
+      const id = bb.createVariable(name, 0);
+      tamperFlags.push({ name, id });
+    }
+    targetTamperFlags.set(target, tamperFlags);
+
+    // Sentinel variables
     const sents: Sentinel[] = [];
     for (let i = 0; i < 2; i++) {
       const magic = randomInt(10000, 99999);
@@ -265,7 +285,7 @@ export function prepareAntiTamper(
   }
 
   project._antiTamperContext = {
-    tamperFlags,
+    targetTamperFlags,
     targetSentinels,
     config: config.antiTamper,
   };
@@ -286,20 +306,13 @@ export function applyAntiTamper(
   const ctx = project._antiTamperContext;
   if (!ctx) return;
 
-  const stage = project.targets.find(t => t.isStage);
-  if (!stage) return;
-
-  const sprites = project.targets.filter(
-    t => !t.isStage && isTargetSelected(t, opts),
-  );
-
   const at = config.antiTamper;
 
   // Type D: Tamper flag monitors (standalone forever-loop scripts)
   if (at.tamperFlagMonitors) {
-    for (const target of [stage, ...sprites]) {
+    for (const [target, flags] of ctx.targetTamperFlags) {
       const bb = new BlockBuilder(target);
-      injectFlagMonitor(bb, ctx.tamperFlags);
+      injectFlagMonitor(bb, flags);
     }
   }
 }
@@ -544,8 +557,9 @@ export function generateTamperCheckStates(
 
   // Build shared tamper response state (set flags + terminal → EXIT)
   const tamperResponsePc = allocPc();
+  const tamperFlags = ctx.targetTamperFlags.get(target) || [];
   const flagSetIds: string[] = [];
-  for (const flag of ctx.tamperFlags) {
+  for (const flag of tamperFlags) {
     flagSetIds.push(bb.setVariable(flag.name, flag.id, 1));
   }
   if (flagSetIds.length > 1) {
@@ -611,10 +625,12 @@ export function applyStringListChecksum(
   if (!stage) return;
 
   const { id: listId, name: listName } = project._constListInfo;
-  const listData = stage.lists[listId];
+  // Find which target owns the constants list (may be a sprite, not the stage)
+  const listOwner = project.targets.find(t => t.lists[listId]) || stage;
+  const listData = listOwner.lists[listId];
   if (!listData || listData[1].length === 0) return;
 
-  const bb = new BlockBuilder(stage);
+  const bb = new BlockBuilder(listOwner);
 
   // Create fresh tamper flags (can't easily find originals)
   const tamperFlags: TamperFlag[] = [];

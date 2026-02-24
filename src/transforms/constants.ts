@@ -25,15 +25,26 @@ import { uid, confusableName, randomInt, randomNumber, randomBool } from '../uid
 export function applyConstantObfuscation(project: SB3Project, config: ObfuscatorConfig, opts?: ObfuscateOptions): void {
   if (!config.constants.enabled) return;
 
-  // Create a global constants list on the stage for string pooling
   const stage = project.targets.find(t => t.isStage);
   if (!stage) return;
 
-  const constListName = confusableName();
-  const constListId = uid();
-  stage.lists[constListId] = [constListName, []];
-  const constPool: string[] = [];
-  project._constListInfo = { id: constListId, name: constListName };
+  // Determine which target hosts the constants list.
+  // Global: on the stage (accessible by all sprites, but may get cleared if
+  //         no stage blocks reference it — e.g. when using onlySprites).
+  // Per-sprite: on each sprite individually (safe with onlySprites/backpack).
+  const useGlobalPool = config.constants.globalStringPool;
+
+  // Global pool: single list on stage shared by all targets
+  let globalListName: string | undefined;
+  let globalListId: string | undefined;
+  let globalPool: string[] | undefined;
+  if (useGlobalPool) {
+    globalListName = confusableName();
+    globalListId = uid();
+    stage.lists[globalListId] = [globalListName, []];
+    globalPool = [];
+    project._constListInfo = { id: globalListId, name: globalListName };
+  }
 
   // Block IDs to skip in number equations
   const eq = config.constants.equations;
@@ -56,6 +67,27 @@ export function applyConstantObfuscation(project: SB3Project, config: Obfuscator
 
     const bb = new BlockBuilder(target);
 
+    // Resolve which list/pool to use for this target
+    let listName: string;
+    let listId: string;
+    let pool: string[];
+    let listOwner: SB3Target;
+    if (useGlobalPool) {
+      listName = globalListName!;
+      listId = globalListId!;
+      pool = globalPool!;
+      listOwner = stage;
+    } else {
+      // Per-sprite pool: each target gets its own constants list
+      listName = confusableName();
+      listId = uid();
+      pool = [];
+      target.lists[listId] = [listName, []];
+      listOwner = target;
+      // Store the last one for anti-tamper checksum (type L) — best effort
+      project._constListInfo = { id: listId, name: listName };
+    }
+
     // Sub-pass 1: String splitting (TEXT_PRIMITIVE → operator_join trees)
     if (config.constants.splitStrings) {
       splitStringsInTarget(target, bb, config.constants.stringSplitDepth);
@@ -63,12 +95,12 @@ export function applyConstantObfuscation(project: SB3Project, config: Obfuscator
 
     // Sub-pass 2a: String list (TEXT_PRIMITIVE → data_itemoflist from constants pool)
     if (config.constants.obfuscateStrings) {
-      obfuscateStringsInTarget(target, bb, constListName, constListId, constPool, stage);
+      obfuscateStringsInTarget(target, bb, listName, listId, pool, listOwner);
     }
 
     // Sub-pass 2b: Shadow menu strings (obscure dropdown menus with itemoflist reporters)
     if (config.constants.obfuscateStrings) {
-      obfuscateShadowMenusInTarget(target, bb, constListName, constListId, constPool, stage);
+      obfuscateShadowMenusInTarget(target, bb, listName, listId, pool, listOwner);
     }
 
     // Sub-pass 3: Number equations (MATH_NUM_PRIMITIVE → math expression trees)

@@ -46,6 +46,9 @@ export interface ObfuscatorConfig {
     stringSplitDepth: number;
     /** Obfuscate string literals by moving them to a constants list */
     obfuscateStrings: boolean;
+    /** Place the constants string pool on the stage (global) instead of per-sprite.
+     *  Use false when using onlySprites — Scratch may clear unused stage lists on re-serialize. */
+    globalStringPool: boolean;
     /** Obfuscate number literals into math expressions */
     obfuscateNumbers: boolean;
     /** Depth of math expression tree for number obfuscation */
@@ -209,6 +212,7 @@ export const PRESET_LIGHT: ObfuscatorConfig = {
     splitStrings: false,
     stringSplitDepth: 1,
     obfuscateStrings: true,
+    globalStringPool: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
     equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
@@ -291,6 +295,7 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
     splitStrings: true,
     stringSplitDepth: 1,
     obfuscateStrings: true,
+    globalStringPool: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
     equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
@@ -373,6 +378,7 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
     splitStrings: true,
     stringSplitDepth: 2,
     obfuscateStrings: true,
+    globalStringPool: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
     equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
@@ -455,6 +461,7 @@ export const PRESET_MAX: ObfuscatorConfig = {
     splitStrings: true,
     stringSplitDepth: 2,
     obfuscateStrings: true,
+    globalStringPool: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 2,
     equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
@@ -530,8 +537,10 @@ export function isTargetSelected(
   target: { isStage: boolean; name: string },
   opts?: ObfuscateOptions,
 ): boolean {
-  if (target.isStage) return true;
+  // When onlySprites is set, only process those sprites — skip the stage
+  // unless no filter is active (stage is needed for shared state by default).
   if (opts?.onlySprites?.length) return opts.onlySprites.includes(target.name);
+  if (target.isStage) return true;
   if (opts?.excludeSprites?.length) return !opts.excludeSprites.includes(target.name);
   return true;
 }
