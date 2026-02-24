@@ -445,8 +445,9 @@ export const PRESETS: Record<string, ObfuscatorConfig> = {
   max: PRESET_MAX,
 };
 
-export function mergeConfig(base: ObfuscatorConfig, overrides: Partial<DeepPartial<ObfuscatorConfig>>): ObfuscatorConfig {
-  const result = JSON.parse(JSON.stringify(base));
+export function mergeConfig(base: ObfuscatorConfig | string, overrides: Partial<DeepPartial<ObfuscatorConfig>>): ObfuscatorConfig {
+  const resolved = typeof base === 'string' ? (PRESETS[base] || PRESET_MEDIUM) : base;
+  const result = JSON.parse(JSON.stringify(resolved));
   deepMerge(result, overrides);
   return result;
 }
