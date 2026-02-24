@@ -114,10 +114,10 @@ export function applyRenaming(project: SB3Project, config: ObfuscatorConfig, opt
       // Stage variables are GLOBAL — sprites reference them via the Stage's
       // variable IDs in inline [12, name, id] primitives and data_variable fields.
       // We must update ALL targets' blocks, not just the Stage's own blocks.
+      // This includes non-selected sprites since they may read global variables.
       if (target.isStage) {
         for (const otherTarget of project.targets) {
           if (otherTarget === target) continue; // already done above
-          if (!isTargetSelected(otherTarget, opts)) continue;
           renameVariableReferences(otherTarget, varIdMap, listIdMap);
         }
       }
@@ -152,9 +152,9 @@ export function applyRenaming(project: SB3Project, config: ObfuscatorConfig, opt
       }
     }
 
-    // Update block references only in selected targets
+    // Update block references in ALL targets — broadcasts are global, so
+    // non-selected sprites that send/receive renamed broadcasts must be updated too.
     for (const target of project.targets) {
-      if (!isTargetSelected(target, opts)) continue;
       renameBroadcastReferences(target, broadcastIdMap, broadcastNameMap);
     }
   }
