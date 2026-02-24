@@ -1169,8 +1169,7 @@ function createScriptInfrastructure(
 //     add (threadId) to [pcIds]
 //     add (ENTRY_PC) to [pcVals]
 //     [if wait infra: add 0 to waitFlags, add '' to bcastPendingMsg]
-//     set [cachedPc] to (ENTRY_PC)
-//     repeat until (cachedPc) = 0:
+//     repeat until (item (item# of threadId in pcIds) of pcVals) = 0:
 //       call step_N(threadId, args...)
 //     [cleanup: delete entries from all parallel lists]
 
@@ -1205,10 +1204,6 @@ function buildRunFunction(
     fullChain.push(addBcMsg);
   }
 
-  // ── Init cachedPcVar (non-zero so loop enters) ──
-  const setCached = bb.setVariable(ctx.cachedPcVarName, ctx.cachedPcVarId, entryPc);
-  fullChain.push(setCached);
-
   // ── Main loop body: ONLY call step_N(threadId arg, forwarded args...) ──
   const stepInputs: string[] = [bb.argumentReporter(ctx.runArgNames[0])];
   // Forward original args (skip index 0 which is threadId in run_N)
@@ -1225,11 +1220,15 @@ function buildRunFunction(
     bb.setParent(inp, callStep);
   }
 
-  // ── Loop exit condition: cachedPcVar = 0 ──
-  const cachedRead = bb.readVariable(ctx.cachedPcVarName, ctx.cachedPcVarId);
+  // ── Loop exit condition: read PC directly from pcVals list (thread-safe) ──
+  const tidForExit = bb.argumentReporter(ctx.runArgNames[0]);
+  const idxForExit = bb.itemNumOfList(ctx.lists.pcIdName, ctx.lists.pcIdId, tidForExit);
+  bb.setParent(tidForExit, idxForExit);
+  const pcForExit = bb.itemOfList(ctx.lists.pcValName, ctx.lists.pcValId, idxForExit);
+  bb.setParent(idxForExit, pcForExit);
   const zeroLitExit = bb.numberLiteral(0);
-  const exitCond = bb.comparison('operator_equals', cachedRead, zeroLitExit);
-  bb.setParent(cachedRead, exitCond);
+  const exitCond = bb.comparison('operator_equals', pcForExit, zeroLitExit);
+  bb.setParent(pcForExit, exitCond);
 
   const loopId = bb.repeatUntil(exitCond, callStep);
   bb.setParent(exitCond, loopId);
@@ -1748,7 +1747,7 @@ function buildStateBody(
     const setPc = writePcToList(bb, ctx, pollPcValue);
     blocks.push(setPc);
 
-    // Set cachedPcVar for run_N exit check (non-zero → keep looping)
+    // Set cachedPcVar for step exit check (non-zero → keep looping)
     const setCached = bb.setVariable(ctx.cachedPcVarName, ctx.cachedPcVarId, ws.pollPc);
     blocks.push(setCached);
     // keepGoing stays 0 → yields
@@ -1801,7 +1800,7 @@ function buildStateBody(
     const setPc = writePcToList(bb, ctx, pollPcValue);
     blocks.push(setPc);
 
-    // Set cachedPcVar for run_N exit check
+    // Set cachedPcVar for step exit check
     const setCached = bb.setVariable(ctx.cachedPcVarName, ctx.cachedPcVarId, bws.pollPc);
     blocks.push(setCached);
     // keepGoing stays 0 → yields
@@ -1957,7 +1956,7 @@ function resolveAndWritePc(
   const setPc = writePcToList(bb, ctx, pcValueBlock);
 
   if (shouldYield) {
-    // Yield: keepGoing stays 0. Update cachedPcVar for run_N exit check.
+    // Yield: keepGoing stays 0. Update cachedPcVar for step's inner loop.
     const setCached = bb.setVariable(ctx.cachedPcVarName, ctx.cachedPcVarId, resolvedPc);
     bb.setNext(setPc, setCached);
     bb.setParent(setCached, setPc);
