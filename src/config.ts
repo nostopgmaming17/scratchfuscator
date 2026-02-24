@@ -177,7 +177,7 @@ export const PRESET_LIGHT: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
-    equations: { skipCffPcBlocks: true, skipCffBlocks: true },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -243,7 +243,7 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
-    equations: { skipCffPcBlocks: true, skipCffBlocks: true },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -309,7 +309,7 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
-    equations: { skipCffPcBlocks: true, skipCffBlocks: true },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -375,7 +375,7 @@ export const PRESET_MAX: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 2,
-    equations: { skipCffPcBlocks: true, skipCffBlocks: true },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
   },
   renaming: {
     enabled: true,
