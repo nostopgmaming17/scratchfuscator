@@ -101,7 +101,7 @@ export function obfuscate(project: SB3Project, config: ObfuscatorConfig, opts?: 
   const cffBlockIds = new Set<string>();
   for (const target of p.targets) {
     for (const id of Object.keys(target.blocks)) {
-      if (!preCffBlockIds.has(`${target.name}\0${id}`)) cffBlockIds.add(id);
+      if (!preCffBlockIds.has(`${target.name}\0${id}`) && !(p._cffWaitHandlerBlockIds?.has(id))) cffBlockIds.add(id);
     }
   }
   p._cffBlockIds = cffBlockIds;

@@ -9,6 +9,8 @@ export interface SB3Project {
   _cffPcBlockIds?: Set<string>;
   /** All block IDs created by the CFF transform. Populated by pipeline, consumed by constants pass. */
   _cffBlockIds?: Set<string>;
+  /** Block IDs created by the CFF wait handler (safe to obfuscate). Populated by CFF, consumed by pipeline. */
+  _cffWaitHandlerBlockIds?: Set<string>;
 }
 
 export interface SB3Target {

@@ -203,12 +203,12 @@ export function applyCFF(project: SB3Project, config: ObfuscatorConfig, opts?: O
   const stage = project.targets.find(t => t.isStage) || project.targets[0];
   for (const target of project.targets) {
     if (!isTargetSelected(target, opts)) continue;
-    applyCFFToTarget(target, config, stage);
+    applyCFFToTarget(project, target, config, stage);
   }
   project._cffPcBlockIds = _pcBlockIds;
 }
 
-function applyCFFToTarget(target: SB3Target, config: ObfuscatorConfig, stage: SB3Target): void {
+function applyCFFToTarget(project: SB3Project, target: SB3Target, config: ObfuscatorConfig, stage: SB3Target): void {
   const bb = new BlockBuilder(target);
   const deadCtx = createDeadCodeContext(target, bb, stage);
 
@@ -262,7 +262,12 @@ function applyCFFToTarget(target: SB3Target, config: ObfuscatorConfig, stage: SB
   const lists = createTargetLists(target, bb, stage, hasTimerWait, hasBroadcastWait);
   buildGreenFlagCleanup(bb, lists);
   if (hasTimerWait || hasBroadcastWait) {
+    const preWaitIds = new Set(Object.keys(target.blocks));
     buildWaitHandler(target, bb, lists);
+    if (!project._cffWaitHandlerBlockIds) project._cffWaitHandlerBlockIds = new Set();
+    for (const id of Object.keys(target.blocks)) {
+      if (!preWaitIds.has(id)) project._cffWaitHandlerBlockIds.add(id);
+    }
   }
 
   // ── Flatten each script ──
