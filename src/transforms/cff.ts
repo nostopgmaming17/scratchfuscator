@@ -193,7 +193,6 @@ interface ScriptCFFContext {
   cachedPcVarName: string; cachedPcVarId: string;
   keepGoingVarName: string; keepGoingVarId: string;
   baseIndexVarName: string; baseIndexVarId: string;
-  threadIdVarName: string; threadIdVarId: string;
 }
 
 // ── Main entry ────────────────────────────────────────────────────
@@ -1153,9 +1152,6 @@ function createScriptInfrastructure(
   const keepGoingVarId = bb.createVariable(keepGoingVarName, 0);
   const baseIndexVarName = confusableName();
   const baseIndexVarId = bb.createVariable(baseIndexVarName, 0);
-  const threadIdVarName = confusableName();
-  const threadIdVarId = bb.createVariable(threadIdVarName, 0);
-
   return {
     lists,
     runProccode, runArgIds, runArgNames,
@@ -1164,20 +1160,18 @@ function createScriptInfrastructure(
     cachedPcVarName, cachedPcVarId,
     keepGoingVarName, keepGoingVarId,
     baseIndexVarName, baseIndexVarId,
-    threadIdVarName, threadIdVarId,
   };
 }
 
 // ── Build run_N function ──────────────────────────────────────────
 //
 //   run_N(threadId, args...) [NOT warp]:
-//     set [threadIdVar] to (threadId)    // save arg to local var
-//     add (threadIdVar) to [pcIds]
+//     add (threadId) to [pcIds]
 //     add (ENTRY_PC) to [pcVals]
 //     [if wait infra: add 0 to waitFlags, add '' to bcastPendingMsg]
 //     set [cachedPc] to (ENTRY_PC)
 //     repeat until (cachedPc) = 0:
-//       call step_N(threadIdVar, args...)
+//       call step_N(threadId, args...)
 //     [cleanup: delete entries from all parallel lists]
 
 function buildRunFunction(
@@ -1190,15 +1184,8 @@ function buildRunFunction(
 
   const fullChain: string[] = [];
 
-  // ── Save threadId argument to local variable ──
-  // run_N's first arg (index 0) is the threadId passed by the caller
-  const tidArgRead = bb.argumentReporter(ctx.runArgNames[0]);
-  const setThreadId = bb.setVariableToBlock(ctx.threadIdVarName, ctx.threadIdVarId, tidArgRead);
-  bb.setParent(tidArgRead, setThreadId);
-  fullChain.push(setThreadId);
-
   // ── Add one entry to each parallel list ──
-  const idRead1 = bb.readVariable(ctx.threadIdVarName, ctx.threadIdVarId);
+  const idRead1 = bb.argumentReporter(ctx.runArgNames[0]);
   const addId = bb.addToList(ctx.lists.pcIdName, ctx.lists.pcIdId, idRead1);
   bb.setParent(idRead1, addId);
   fullChain.push(addId);
@@ -1222,8 +1209,8 @@ function buildRunFunction(
   const setCached = bb.setVariable(ctx.cachedPcVarName, ctx.cachedPcVarId, entryPc);
   fullChain.push(setCached);
 
-  // ── Main loop body: ONLY call step_N(threadIdVar, forwarded args...) ──
-  const stepInputs: string[] = [bb.readVariable(ctx.threadIdVarName, ctx.threadIdVarId)];
+  // ── Main loop body: ONLY call step_N(threadId arg, forwarded args...) ──
+  const stepInputs: string[] = [bb.argumentReporter(ctx.runArgNames[0])];
   // Forward original args (skip index 0 which is threadId in run_N)
   for (let i = 1; i < ctx.runArgNames.length; i++) {
     const isBoolean = ctx.runArgTypes[i - 1] === 'b';
@@ -1250,7 +1237,7 @@ function buildRunFunction(
   fullChain.push(loopId);
 
   // ── Cleanup: delete one entry from pcIds, pcVals [, waitFlags, bcastPendingMsg] ──
-  const idReadCleanup = bb.readVariable(ctx.threadIdVarName, ctx.threadIdVarId);
+  const idReadCleanup = bb.argumentReporter(ctx.runArgNames[0]);
   const idxCleanup = bb.itemNumOfList(ctx.lists.pcIdName, ctx.lists.pcIdId, idReadCleanup);
   bb.setParent(idReadCleanup, idxCleanup);
   const setBase = bb.setVariableToBlock(ctx.baseIndexVarName, ctx.baseIndexVarId, idxCleanup);
