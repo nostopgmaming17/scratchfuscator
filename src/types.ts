@@ -11,6 +11,12 @@ export interface SB3Project {
   _cffBlockIds?: Set<string>;
   /** Block IDs created by the CFF wait handler (safe to obfuscate). Populated by CFF, consumed by pipeline. */
   _cffWaitHandlerBlockIds?: Set<string>;
+  /** Block IDs created by the variable encryption transform. */
+  _varEncBlockIds?: Set<string>;
+  /** Block IDs created by the argument encryption transform. */
+  _argEncBlockIds?: Set<string>;
+  /** Constants string pool list info. Populated by constants transform, consumed by anti-tamper. */
+  _constListInfo?: { id: string; name: string };
 }
 
 export interface SB3Target {

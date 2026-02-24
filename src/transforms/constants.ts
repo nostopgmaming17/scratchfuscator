@@ -32,14 +32,22 @@ export function applyConstantObfuscation(project: SB3Project, config: Obfuscator
   const constListId = uid();
   stage.lists[constListId] = [constListName, []];
   const constPool: string[] = [];
+  project._constListInfo = { id: constListId, name: constListName };
 
-  // Block IDs to skip in number equations (CFF-related blocks)
+  // Block IDs to skip in number equations
   const eq = config.constants.equations;
   let skipIds: Set<string> | undefined;
   if (eq.skipCffBlocks && project._cffBlockIds) {
     skipIds = project._cffBlockIds;
   } else if (eq.skipCffPcBlocks && project._cffPcBlockIds) {
     skipIds = project._cffPcBlockIds;
+  }
+  // Merge in variable/argument encryption block IDs if configured
+  if (eq.skipVarEncryptionBlocks && project._varEncBlockIds) {
+    skipIds = skipIds ? new Set([...skipIds, ...project._varEncBlockIds]) : project._varEncBlockIds;
+  }
+  if (eq.skipArgEncryptionBlocks && project._argEncBlockIds) {
+    skipIds = skipIds ? new Set([...skipIds, ...project._argEncBlockIds]) : project._argEncBlockIds;
   }
 
   for (const target of project.targets) {

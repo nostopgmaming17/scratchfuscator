@@ -76,26 +76,36 @@ export function applyRenaming(project: SB3Project, config: ObfuscatorConfig, opt
     for (const target of project.targets) {
       // Skip non-selected targets (but references in their blocks are still updated below)
       if (!isTargetSelected(target, opts)) continue;
+      // Skip renaming stage (global) variables/lists when onlySprites is set,
+      // because non-selected sprites may reference them and would break.
+      const skipGlobalVars = target.isStage && opts?.onlySprites?.length;
+
       // Variables
       const varNameMap: Record<string, string> = {}; // oldName -> newName
       const varIdMap: Record<string, string> = {};   // id -> newName
-      for (const [varId, varData] of Object.entries(target.variables)) {
-        const oldName = varData[0];
-        if (excluded.has(oldName)) continue;
-        const newName = confusableName(80);
-        varNameMap[oldName] = newName;
-        varIdMap[varId] = newName;
-        varData[0] = newName;
+      if (!skipGlobalVars) {
+        for (const [varId, varData] of Object.entries(target.variables)) {
+          const oldName = varData[0];
+          if (excluded.has(oldName)) continue;
+          // Never rename cloud variables (3rd element is true)
+          if (varData.length === 3 && varData[2] === true) continue;
+          const newName = confusableName(80);
+          varNameMap[oldName] = newName;
+          varIdMap[varId] = newName;
+          varData[0] = newName;
+        }
       }
 
       // Lists
       const listIdMap: Record<string, string> = {};
-      for (const [listId, listData] of Object.entries(target.lists)) {
-        const oldName = listData[0];
-        if (excluded.has(oldName)) continue;
-        const newName = confusableName(80);
-        listIdMap[listId] = newName;
-        listData[0] = newName;
+      if (!skipGlobalVars) {
+        for (const [listId, listData] of Object.entries(target.lists)) {
+          const oldName = listData[0];
+          if (excluded.has(oldName)) continue;
+          const newName = confusableName(80);
+          listIdMap[listId] = newName;
+          listData[0] = newName;
+        }
       }
 
       // Update block references in the owning target
@@ -107,6 +117,7 @@ export function applyRenaming(project: SB3Project, config: ObfuscatorConfig, opt
       if (target.isStage) {
         for (const otherTarget of project.targets) {
           if (otherTarget === target) continue; // already done above
+          if (!isTargetSelected(otherTarget, opts)) continue;
           renameVariableReferences(otherTarget, varIdMap, listIdMap);
         }
       }
@@ -114,8 +125,9 @@ export function applyRenaming(project: SB3Project, config: ObfuscatorConfig, opt
       // Update monitors (the "show variable" / "show list" displays on the stage)
       renameMonitors(project, varIdMap, listIdMap);
 
-      // Update sensing_of references in all targets that may sense this target's variables
+      // Update sensing_of references in selected targets that may sense this target's variables
       for (const target2 of project.targets) {
+        if (!isTargetSelected(target2, opts)) continue;
         renameSensingOfReferences(target, target2, varNameMap);
       }
     }
@@ -140,8 +152,9 @@ export function applyRenaming(project: SB3Project, config: ObfuscatorConfig, opt
       }
     }
 
-    // Update block references in ALL targets (broadcasts are global)
+    // Update block references only in selected targets
     for (const target of project.targets) {
+      if (!isTargetSelected(target, opts)) continue;
       renameBroadcastReferences(target, broadcastIdMap, broadcastNameMap);
     }
   }

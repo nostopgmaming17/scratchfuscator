@@ -23,6 +23,8 @@ import { applyRenaming } from './renaming';
 import { applyScramble } from './scramble';
 import { applySensingOf } from './sensingof';
 import { applyBroadcastObf } from './broadcastobf';
+import { applyVarEncryption } from './varencryption';
+import { applyAntiTamper } from './antitamper';
 import { resetNames } from '../uid';
 
 /**
@@ -84,6 +86,10 @@ export function obfuscate(project: SB3Project, config: ObfuscatorConfig, opts?: 
   console.log('[obfuscator] Phase 2: Renaming');
   applyRenaming(p, config, opts);
 
+  // 2a. Variable encryption (AFTER renaming, BEFORE CFF so math blocks get flattened)
+  console.log('[obfuscator] Phase 2a: Variable encryption');
+  applyVarEncryption(p, config, opts);
+
   // 2b. Sensing-of substitution (AFTER renaming so var/sprite names are final,
   //     BEFORE CFF so the injected set-temp block can be split into a separate state)
   console.log('[obfuscator] Phase 2b: Sensing-of substitution');
@@ -122,8 +128,12 @@ export function obfuscate(project: SB3Project, config: ObfuscatorConfig, opts?: 
   console.log('[obfuscator] Phase 6: Visual scrambling');
   applyScramble(p, config, opts);
 
-  // 7. Inline primitives (fix SB3 schema compliance)
-  console.log('[obfuscator] Phase 7: Inlining primitives');
+  // 7. Anti-tamper (AFTER all other transforms so it knows final names/values)
+  console.log('[obfuscator] Phase 7: Anti-tamper');
+  applyAntiTamper(p, config, opts);
+
+  // 8. Inline primitives (fix SB3 schema compliance)
+  console.log('[obfuscator] Phase 8: Inlining primitives');
   inlinePrimitives(p);
 
   console.log('[obfuscator] Obfuscation complete.');
@@ -139,3 +149,5 @@ export { applyRenaming } from './renaming';
 export { applyScramble } from './scramble';
 export { applySensingOf } from './sensingof';
 export { applyBroadcastObf } from './broadcastobf';
+export { applyVarEncryption } from './varencryption';
+export { applyAntiTamper } from './antitamper';

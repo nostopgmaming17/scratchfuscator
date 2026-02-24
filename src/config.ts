@@ -63,6 +63,12 @@ export interface ObfuscatorConfig {
        *  (dispatcher, state machine, list operations, counters, etc.)
        *  is excluded from the equations sub-pass. */
       skipCffBlocks: boolean;
+      /** Skip number equation obfuscation on variable encryption blocks
+       *  (the * a + b / - b / a math injected by varEncryption). */
+      skipVarEncryptionBlocks: boolean;
+      /** Skip number equation obfuscation on argument encryption blocks
+       *  (the * a + b / - b / a math injected around procedure args). */
+      skipArgEncryptionBlocks: boolean;
     };
   };
 
@@ -133,6 +139,40 @@ export interface ObfuscatorConfig {
     probability: number;
   };
 
+  /** Variable encryption (linear transform on numeric values) */
+  varEncryption: {
+    enabled: boolean;
+    /** Variable names to exclude from encryption */
+    excludeVariables: string[];
+  };
+
+  /** Anti-tamper integrity checks */
+  antiTamper: {
+    enabled: boolean;
+    /** Inject hidden variables with magic values and verify they haven't been modified */
+    hiddenVariableChecks: boolean;
+    /** Use sensing_of to verify own variable names and sprite/stage name are intact */
+    sensingOfSelfChecks: boolean;
+    /** Redundant forever loops on each target that watch shared tamper flag variables */
+    tamperFlagMonitors: boolean;
+    /** Create hidden lists and verify their length and item values are unchanged */
+    hiddenListChecks: boolean;
+    /** Create paired variables that store each other's expected values */
+    pairedVariableChecks: boolean;
+    /** Verify costume number via sensing_of of self (detects sprite rename + costume reorder) */
+    costumeNumberChecks: boolean;
+    /** Each sprite verifies another sprite's sentinel variables in a ring pattern */
+    crossSpriteVerification: boolean;
+    /** Define and call a custom block that sets a variable; detects procedure renaming */
+    customBlockIntegrity: boolean;
+    /** Same as hidden variable checks but with a random delay before checking */
+    delayedIntegrityChecks: boolean;
+    /** Three variables must satisfy a*b+c=expected; can't be bypassed by zeroing them */
+    mathematicalFlagChecks: boolean;
+    /** Sum string lengths in the constants pool list and verify the checksum */
+    stringListChecksum: boolean;
+  };
+
   /** Broadcast obfuscation */
   broadcastObf: {
     enabled: boolean;
@@ -177,7 +217,7 @@ export const PRESET_LIGHT: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
-    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -203,6 +243,24 @@ export const PRESET_LIGHT: ObfuscatorConfig = {
     removeComments: true,
     addFakeComments: false,
     fakeCommentCount: 0,
+  },
+  varEncryption: {
+    enabled: false,
+    excludeVariables: [],
+  },
+  antiTamper: {
+    enabled: false,
+    hiddenVariableChecks: true,
+    sensingOfSelfChecks: true,
+    tamperFlagMonitors: true,
+    hiddenListChecks: true,
+    pairedVariableChecks: true,
+    costumeNumberChecks: true,
+    crossSpriteVerification: true,
+    customBlockIntegrity: true,
+    delayedIntegrityChecks: true,
+    mathematicalFlagChecks: true,
+    stringListChecksum: true,
   },
   sensingOf: {
     enabled: false,
@@ -243,7 +301,7 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
-    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -269,6 +327,24 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
     removeComments: true,
     addFakeComments: true,
     fakeCommentCount: 20,
+  },
+  varEncryption: {
+    enabled: true,
+    excludeVariables: [],
+  },
+  antiTamper: {
+    enabled: false,
+    hiddenVariableChecks: true,
+    sensingOfSelfChecks: true,
+    tamperFlagMonitors: true,
+    hiddenListChecks: true,
+    pairedVariableChecks: true,
+    costumeNumberChecks: true,
+    crossSpriteVerification: true,
+    customBlockIntegrity: true,
+    delayedIntegrityChecks: true,
+    mathematicalFlagChecks: true,
+    stringListChecksum: true,
   },
   sensingOf: {
     enabled: true,
@@ -309,7 +385,7 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 1,
-    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -335,6 +411,24 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
     removeComments: true,
     addFakeComments: true,
     fakeCommentCount: 40,
+  },
+  varEncryption: {
+    enabled: true,
+    excludeVariables: [],
+  },
+  antiTamper: {
+    enabled: false,
+    hiddenVariableChecks: true,
+    sensingOfSelfChecks: true,
+    tamperFlagMonitors: true,
+    hiddenListChecks: true,
+    pairedVariableChecks: true,
+    costumeNumberChecks: true,
+    crossSpriteVerification: true,
+    customBlockIntegrity: true,
+    delayedIntegrityChecks: true,
+    mathematicalFlagChecks: true,
+    stringListChecksum: true,
   },
   sensingOf: {
     enabled: true,
@@ -375,7 +469,7 @@ export const PRESET_MAX: ObfuscatorConfig = {
     obfuscateStrings: true,
     obfuscateNumbers: true,
     mathExpressionDepth: 2,
-    equations: { skipCffPcBlocks: false, skipCffBlocks: false },
+    equations: { skipCffPcBlocks: false, skipCffBlocks: false, skipVarEncryptionBlocks: false, skipArgEncryptionBlocks: false },
   },
   renaming: {
     enabled: true,
@@ -401,6 +495,24 @@ export const PRESET_MAX: ObfuscatorConfig = {
     removeComments: true,
     addFakeComments: true,
     fakeCommentCount: 60,
+  },
+  varEncryption: {
+    enabled: true,
+    excludeVariables: [],
+  },
+  antiTamper: {
+    enabled: false,
+    hiddenVariableChecks: true,
+    sensingOfSelfChecks: true,
+    tamperFlagMonitors: true,
+    hiddenListChecks: true,
+    pairedVariableChecks: true,
+    costumeNumberChecks: true,
+    crossSpriteVerification: true,
+    customBlockIntegrity: true,
+    delayedIntegrityChecks: true,
+    mathematicalFlagChecks: true,
+    stringListChecksum: true,
   },
   sensingOf: {
     enabled: true,
