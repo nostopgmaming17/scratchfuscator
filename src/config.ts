@@ -162,7 +162,7 @@ export const PRESET_LIGHT: ObfuscatorConfig = {
   },
   deadCode: {
     enabled: true,
-    probability: 0.2,
+    probability: 0.15,
     dynamicDeadCode: false,
     variableBasedPredicates: false,
     builtinTemplates: false,
@@ -220,7 +220,7 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
   cff: {
     enabled: true,
     bstDispatch: true,
-    deadStatesPerScript: 3,
+    deadStatesPerScript: 2,
     minBlocksToFlatten: 4,
     warpDispatcher: true,
     flattenProcedures: false,
@@ -228,13 +228,13 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
   },
   deadCode: {
     enabled: true,
-    probability: 0.4,
+    probability: 0.3,
     dynamicDeadCode: true,
     variableBasedPredicates: true,
     builtinTemplates: true,
     maxNestingDepth: 2,
     minChainLength: 1,
-    maxChainLength: 4,
+    maxChainLength: 3,
   },
   constants: {
     enabled: true,
@@ -242,7 +242,7 @@ export const PRESET_MEDIUM: ObfuscatorConfig = {
     stringSplitDepth: 1,
     obfuscateStrings: true,
     obfuscateNumbers: true,
-    mathExpressionDepth: 2,
+    mathExpressionDepth: 1,
     equations: { skipCffPcBlocks: true, skipCffBlocks: true },
   },
   renaming: {
@@ -286,7 +286,7 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
   cff: {
     enabled: true,
     bstDispatch: true,
-    deadStatesPerScript: 8,
+    deadStatesPerScript: 5,
     minBlocksToFlatten: 3,
     warpDispatcher: true,
     flattenProcedures: true,
@@ -294,13 +294,13 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
   },
   deadCode: {
     enabled: true,
-    probability: 0.6,
+    probability: 0.45,
     dynamicDeadCode: true,
     variableBasedPredicates: true,
     builtinTemplates: true,
-    maxNestingDepth: 3,
+    maxNestingDepth: 2,
     minChainLength: 2,
-    maxChainLength: 6,
+    maxChainLength: 5,
   },
   constants: {
     enabled: true,
@@ -308,7 +308,7 @@ export const PRESET_HEAVY: ObfuscatorConfig = {
     stringSplitDepth: 2,
     obfuscateStrings: true,
     obfuscateNumbers: true,
-    mathExpressionDepth: 3,
+    mathExpressionDepth: 1,
     equations: { skipCffPcBlocks: true, skipCffBlocks: true },
   },
   renaming: {
@@ -352,7 +352,7 @@ export const PRESET_MAX: ObfuscatorConfig = {
   cff: {
     enabled: true,
     bstDispatch: true,
-    deadStatesPerScript: 16,
+    deadStatesPerScript: 10,
     minBlocksToFlatten: 2,
     warpDispatcher: true,
     flattenProcedures: true,
@@ -360,21 +360,21 @@ export const PRESET_MAX: ObfuscatorConfig = {
   },
   deadCode: {
     enabled: true,
-    probability: 0.75,
+    probability: 0.6,
     dynamicDeadCode: true,
     variableBasedPredicates: true,
     builtinTemplates: true,
-    maxNestingDepth: 4,
+    maxNestingDepth: 3,
     minChainLength: 3,
-    maxChainLength: 8,
+    maxChainLength: 6,
   },
   constants: {
     enabled: true,
     splitStrings: true,
-    stringSplitDepth: 3,
+    stringSplitDepth: 2,
     obfuscateStrings: true,
     obfuscateNumbers: true,
-    mathExpressionDepth: 4,
+    mathExpressionDepth: 2,
     equations: { skipCffPcBlocks: true, skipCffBlocks: true },
   },
   renaming: {
